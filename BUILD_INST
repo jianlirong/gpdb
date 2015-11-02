@@ -1,0 +1,72 @@
+# Install editor and compile tools
+sudo yum install -y autoconf automake m4 gcc-c++ ed bison flex
+
+# Install compile and runtime libraries
+sudo yum install -y bzip2-devel python-devel openssl-devel readline-devel
+
+# Install python libraries
+wget https://bootstrap.pypa.io/get-pip.py
+sudo python get-pip.py
+
+sudo pip install psi lockfile paramiko setuptools epydoc
+
+
+# Configure, make and make install
+./build.sh
+make
+make install
+
+# Example of greenplum_path.sh
+
+GPHOME=/home/jianlirong/GPDB/devel
+PGDATA=/home/jianlirong/GPDB/data/master/gpseg-1
+PGPORT=9876
+
+# Setup PYTHONHOME
+if [ -x $GPHOME/ext/python/bin/python ]; then
+	PYTHONHOME="$GPHOME/ext/python"
+fi
+
+PYTHONPATH=$GPHOME/lib/python
+PATH=$GPHOME/bin:$PYTHONHOME/bin:$PATH
+LD_LIBRARY_PATH=$GPHOME/lib:$PYTHONHOME/lib:$LD_LIBRARY_PATH
+OPENSSL_CONF=$GPHOME/etc/openssl.cnf
+
+export GPHOME
+export PATH
+export LD_LIBRARY_PATH
+export PYTHONHOME
+export PYTHONPATH
+export OPENSSL_CONF
+
+export PGDATA
+export PGPORT
+
+export MASTER_DATA_DIRECTORY=/home/jianlirong/GPDB/data/master/gpseg-1
+
+# Init a demo cluster
+source greenplum_path.sh
+gpssh-exkeys -h localhost
+
+# Example of initialization configuration
+
+ARRAY_NAME="Open Source GPDB"
+
+SEG_PREFIX=gpseg
+
+PORT_BASE=40000
+
+declare -a DATA_DIRECTORY=(/home/jianlirong/GPDB/data/p1 /home/jianlirong/GPDB/data/p2)
+MASTER_HOSTNAME=localhost
+MASTER_DIRECTORY=/home/jianlirong/GPDB/data/master
+MASTER_PORT=9876
+
+TRUSTED_SHELL=ssh
+CHECK_POINT_SEGMENT=8
+ENCODING=UNICODE
+MACHINE_LIST_FILE=hostfile
+
+# Init a cluster
+gpinitsystem -c gpinitsystem_config -a
+
+
