@@ -1,7 +1,6 @@
 ##
 ## TODO: list test sequence and test dependencies.
 ##
-test: bitmapscan
 test: executor
 test: functions
 test: golden_query
@@ -14,7 +13,6 @@ test: tiny
 test: subquery
 test: wrkloadadmin
 test: xpath
-test: initdb
 ignore: jdbc
 test: world
 test: sirv_functions
@@ -53,7 +51,6 @@ test: cursor
 test: aggfunc
 test: visibility
 test: tidscan
-test: functional
 test: memory_quota
 test: TestPSQL
 test: table_statistics

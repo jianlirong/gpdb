@@ -1561,9 +1561,9 @@ MetaTrackValidKindNsp(Form_pg_class rd_rel)
  * RemoveRelation
  *		Deletes a relation.
  */
-void
+bool
 RemoveRelation(const RangeVar *relation, DropBehavior behavior,
-			   DropStmt *stmt)
+			   DropStmt *stmt, char relkind)
 {
 	Oid			relOid;
 	ObjectAddress object;
@@ -1572,8 +1572,6 @@ RemoveRelation(const RangeVar *relation, DropBehavior behavior,
 
 	AcceptInvalidationMessages();
 
-	relOid = RangeVarGetRelid(relation, false);
-
 	if (Gp_role == GP_ROLE_DISPATCH)
 	{
 		LockRelationOid(RelationRelationId, RowExclusiveLock);
@@ -1581,7 +1579,34 @@ RemoveRelation(const RangeVar *relation, DropBehavior behavior,
 		LockRelationOid(DependRelationId, RowExclusiveLock);
 	}
 
-	LockRelationOid(relOid, AccessExclusiveLock);
+	/*
+	 * Perform name lookup again if we had to wait to acquire lock on
+	 * OID of the relation.  The relation's name could have been
+	 * altered while we were waiting.
+	 */
+	relOid = RangeVarGetRelidExtended(
+			relation, AccessExclusiveLock, stmt->missing_ok,
+			false /* nowait */, NULL /* callback */,
+			NULL /* callback_arg */);
+
+	if (!OidIsValid(relOid))
+	{
+		/*
+		 * Missed to find the object to be dropped.
+		 * Drop with "if exists" just notify the same, unlock as not performing
+		 * any operation and return back to convey didn't drop the relation.
+		 * Drop without "if exists" won't even come here, as would error
+		 * inside RangeVarGetRelidExtended.
+		 */
+		DropErrorMsgNonExistent(relation, relkind, stmt->missing_ok);
+		if (Gp_role == GP_ROLE_DISPATCH)
+		{
+			UnlockRelationOid(DependRelationId, RowExclusiveLock);
+			UnlockRelationOid(TypeRelationId, RowExclusiveLock);
+			UnlockRelationOid(RelationRelationId, RowExclusiveLock);
+		}
+		return false;
+	}
 
 	pcqCtx = caql_beginscan(
 			NULL,
@@ -1622,6 +1647,7 @@ RemoveRelation(const RangeVar *relation, DropBehavior behavior,
 
 	/* if we got here then we should proceed. */
 	performDeletion(&object, behavior);
+	return true;
 }
 
 /*
@@ -14945,7 +14971,9 @@ ATPExecPartExchange(AlteredTableInfo *tab, Relation rel, AlterPartitionCmd *pc)
 		 * We do not allow EXCHANGE PARTITION for the default partition, so let's check for that
 		 * and error out.
 		 */
-		if (!is_split && rel_is_default_partition(oldrelid))
+		bool fExchangeDefaultPart = !is_split && rel_is_default_partition(oldrelid);
+
+		if (fExchangeDefaultPart && !gp_enable_exchange_default_partition)
 		{
 			ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
@@ -14963,6 +14991,12 @@ ATPExecPartExchange(AlteredTableInfo *tab, Relation rel, AlterPartitionCmd *pc)
 		pc->partid = (Node *)oldrelrv;
 		pc2 = (AlterPartitionCmd *)pc->arg2;
 		pc2->arg2 = (Node *)pcols; /* for execute nodes */
+
+		if (fExchangeDefaultPart)
+		{
+			elog(WARNING, "Exchanging default partition may result in unexpected query results if "
+					"the data being exchanged should have been inserted into a different partition");
+		}
 
 		/* MPP-6929: metadata tracking */
 		MetaTrackUpdObject(RelationRelationId,
