@@ -42,6 +42,10 @@ function mount_disk_to_dir()
 	# change the owner and group of the data directory
 	chown -R gpadmin ${dir}
 	chgrp -R gpadmin ${dir}
+
+	# add mout information to /etc/fstab
+	dev_uuid=`blkid ${dev}1 | awk '{print $2}' | sed 's/\"//g'`
+	echo "${dev_uuid} ${dir} ext4 defaults 0 2" >> /etc/fstab
 }
 
 #
