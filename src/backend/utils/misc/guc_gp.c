@@ -392,6 +392,7 @@ int			gp_idf_deduplicate;
 bool		fts_diskio_check = false;
 
 /* Planner gucs */
+bool		gp_enable_appendonly_indexscan = false;
 bool		gp_enable_hashjoin_size_heuristic = false;
 bool		gp_enable_fallback_plan = true;
 bool		gp_enable_predicate_propagation = false;
@@ -706,6 +707,14 @@ struct config_bool ConfigureNamesBool_gp[] =
 		},
 		&enable_groupagg,
 		true, NULL, NULL
+	},
+	{
+		{"gp_enable_appendonly_indexscan", PGC_USERSET, QUERY_TUNING_METHOD,
+			gettext_noop("Enables the planner's use of index scan plans for append-only tables."),
+			NULL
+		},
+		&gp_enable_appendonly_indexscan,
+		false, NULL, NULL
 	},
 	{
 		{"gp_enable_hashjoin_size_heuristic", PGC_USERSET, QUERY_TUNING_METHOD,
